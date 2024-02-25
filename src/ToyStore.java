@@ -1,72 +1,93 @@
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.PriorityQueue;
-import java.util.Random;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class ToyStore {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        // Создание игрушек
-        PriorityQueue<Toy> toyQueue = new PriorityQueue<>((t1, t2) -> t2.weight - t1.weight);
+    private final List<Toy> toys;
 
-        System.out.println("Введите данные игрушек в формате: id название вес");
-        System.out.println("Пример: 1 Машинка 2");
-        System.out.println("Для завершения ввода введите 'выход'");
-
-        while (true) {
-            String input = scanner.nextLine().trim();
-            if (input.equals("выход")) {
-                break;
-            }
-            String[] parts = input.split(" ");
-            if (parts.length != 3) {
-                System.out.println("Неверный формат ввода. Повторите попытку.");
-                continue;
-            }
-            String id = parts[0];
-            String name = parts[1];
-            int weight;
-            try {
-                weight = Integer.parseInt(parts[2]);
-            } catch (NumberFormatException e) {
-                System.out.println("Неверный формат веса. Повторите попытку.");
-                continue;
-            }
-            Toy toy = new Toy(id, name, weight);
-            toyQueue.add(toy);
-        }
-        scanner.close();
-
-        // Получение 10 игрушек из очереди и запись результатов в файл
-        try {
-            FileWriter writer = new FileWriter("output.txt");
-            Random random = new Random();
-            for (int i = 0; i < 10; i++) {
-                Toy toy = getRandomToy(toyQueue, random);
-                if (toy != null) {
-                    writer.write("ID: " + toy.id + ", Название: " + toy.name + "\n");
-                } else {
-                    writer.write("Очередь пуста\n");
-                }
-            }
-            writer.close();
-            System.out.println("Результаты записаны в файл output.txt");
-        } catch (IOException e) {
-            System.out.println("Ошибка при записи в файл: " + e.getMessage());
-        }
+    public ToyStore() {
+        toys = new ArrayList<>();
     }
 
-    private static Toy getRandomToy(PriorityQueue<Toy> toyQueue, Random random) {
-        int totalWeight = toyQueue.stream().mapToInt(t -> t.weight).sum();
-        int randomWeight = random.nextInt(totalWeight);
-        int currentWeight = 0;
-        for (Toy toy : toyQueue) {
-            currentWeight += toy.weight;
-            if (randomWeight < currentWeight) {
-                return toy;
+    public void addToy(int id, String name, int quantity, double weight) {
+        toys.add(new Toy(id, name, quantity, weight));
+    }
+
+    public void updateWeight(int toyId, double weight) {
+        for (Toy toy : toys) {
+            if (toy.getId() == toyId) {
+                toy.setWeight(weight);
+                return;
+            }
+        }
+        System.out.println("Игрушка с id " + toyId + " не найдена.");
+    }
+
+    public Toy drawToy() {
+        double totalWeight = toys.stream().mapToDouble(Toy::getWeight).sum();
+        double randomWeight = Math.random() * totalWeight;
+        double cumulativeWeight = 0;
+        for (Toy toy : toys) {
+            cumulativeWeight += toy.getWeight();
+            if (randomWeight <= cumulativeWeight) {
+                if (toy.getQuantity() > 0) {
+                    toy.decreaseQuantity();
+                    return toy;
+                } else {
+                    System.out.println("Игрушки " + toy.getName() + " нет в наличии.");
+                    return null;
+                }
             }
         }
         return null;
+    }
+
+    public void saveToyToFile(Toy toy) {
+        try (FileWriter writer = new FileWriter("prize_toys.txt", true)) {
+            writer.write("Игрушка: " + toy.getName() + "\n");
+        } catch (IOException e) {
+            System.out.println("Произошла ошибка при сохранении в файл.");
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) {
+        ToyStore toyStore = new ToyStore();
+
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Введите данные игрушки (идентификатор, название, количество, вес) " +
+                "или 'выход' чтобы закончить:");
+        while (true) {
+            String input = scanner.nextLine();
+            if (input.equals("выход")) {
+                break;
+            }
+            String[] tokens = input.split(",");
+            if (tokens.length != 4) {
+                System.out.println("Неверный формат ввода. Пожалуйста, введите идентификатор, имя, количество, вес через запятую.");
+                continue;
+            }
+            try {
+                int id = Integer.parseInt(tokens[0].trim());
+                String name = tokens[1].trim();
+                int quantity = Integer.parseInt(tokens[2].trim());
+                double weight = Double.parseDouble(tokens[3].trim());
+                toyStore.addToy(id, name, quantity, weight);
+            } catch (NumberFormatException e) {
+                System.out.println("Недопустимый формат номера. Пожалуйста, введите действительные номера.");
+            }
+        }
+
+        Toy drawnToy = toyStore.drawToy();
+        if (drawnToy != null) {
+            System.out.println("Поздравляю! Вы выиграли " + drawnToy.getName());
+            toyStore.saveToyToFile(drawnToy);
+        } else {
+            System.out.println("Извините, игрушек для розыгрыша нет.");
+        }
+
+        scanner.close();
     }
 }
